@@ -54,10 +54,17 @@ char *get_string_from_table(ByteFile *f, int pos) {
 
 const int MAX_STACK_SIZE = 1024 * 1024;
 
-void init_interpreter() {
-    __init();
-    vm.fp = __gc_stack_bottom = __gc_stack_top = malloc(MAX_STACK_SIZE * sizeof(int)) + MAX_STACK_SIZE;
-    vm.sp = __gc_stack_bottom;
+void init_interpreter(ByteFile *bf, int32_t **stack_top, int32_t **stack_bottom) {
+    *stack_top = malloc(MAX_STACK_SIZE * sizeof(int32_t)) + MAX_STACK_SIZE;
+    if (*stack_top == NULL) {
+        failure("Init: malloc failure");
+    }
+    *stack_bottom = *stack_top;
+    vm.s_top = stack_top;
+    vm.fp = *stack_bottom;
+    vm.bf = bf;
+    vm.sp = *stack_bottom;
+
     vm_st_push(0);
     vm_st_push(0);
     vm_st_push(2);
@@ -65,7 +72,7 @@ void init_interpreter() {
 
 
 void free_interpreter() {
-    free(__gc_stack_top - MAX_STACK_SIZE);
+    free(vm.s_top - MAX_STACK_SIZE);
 }
 
 void vm_st_push(int32_t value) {
@@ -135,8 +142,8 @@ int32_t *get_by_location(char sb, int32_t value) {
 
 #define BINARY_OP(op) \
     do { \
-        int a = UNBOX(vm_st_pop()); \
         int b = UNBOX(vm_st_pop()); \
+        int a = UNBOX(vm_st_pop()); \
         vm_st_push(BOX(a op b)); \
     } while (0)
 
@@ -196,10 +203,10 @@ void eval() {
 #define READ_STRING get_string_from_table(vm.bf, READ_INT)
     vm.ip = vm.bf->code_ptr;
 
-    for (;;) {
+    do {
         uint8_t instruction = READ_BYTE;
-        char first_bits = (instruction & 0xF0) >> 4;
-        int second_bits = instruction & 0x0F;
+        char first_bits = (char)((instruction & 0xF0) >> 4);
+        char second_bits = (char)(instruction & 0x0F);
         if (first_bits == 15) {
             return;
         }
@@ -273,7 +280,7 @@ void eval() {
 
         switch (instruction) {
             case I_CONST: {
-                vm_st_push(BOX_INT(READ_INT));
+                vm_st_push(BOX(READ_INT));
                 break;
             }
             case I_STRING: {
@@ -320,7 +327,7 @@ void eval() {
             case I_CJMP_NZ: {
                 int32_t shift = READ_INT;
                 int32_t cmp_val = UNBOX(vm_st_pop());
-                if (cmp_val == 0) {
+                if (cmp_val != 0) {
                     jump_shift(shift);
                 }
                 break;
@@ -455,18 +462,17 @@ void eval() {
                 failure("ERROR: invalid opcode %d-%d\n", first_bits, second_bits);
             }
         }
-    }
+    } while (vm.ip != 0);
 }
 
 #undef READ_BYTE
 
 
 int main(int argc, char *argv[]) {
+    __init();
     ByteFile *f = read_file(argv[1]);
-    init_interpreter();
-    vm.bf = f;
+    init_interpreter(f, &__gc_stack_top, &__gc_stack_bottom);
     eval();
-    free_interpreter();
     return 0;
 }
 
