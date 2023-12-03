@@ -3,8 +3,6 @@
 
 #include <stdint.h>
 #include "../runtime/runtime.h"
-#include "../runtime/runtime_common.h"
-#include "../runtime/gc.h"
 
 extern int Lread();
 extern int Lwrite(int);
@@ -67,7 +65,7 @@ typedef enum {
     I_CALL = 0x56, // calls a function/procedure
     I_TAG = 0x57, // checks the tag and arity of S-expression
     I_ARRAY = 0x58, // checks the tag and size of array
-    I_FAIL = 0x59, // match failure (location, leave a value
+    I_FAIL = 0x59, // match failure (location, leave a value)
     I_LINE = 0x5a,// line info
     I_CALL_READ = 0x70,
     I_CALL_WRITE = 0x71,
@@ -78,7 +76,7 @@ typedef enum {
 } OpCode;
 
 typedef enum {
-    OP_PLUS,  // +
+    OP_PLUS = 1,  // +
     OP_MINUS, // -
     OP_MUL,   // *
     OP_DIV,   // /

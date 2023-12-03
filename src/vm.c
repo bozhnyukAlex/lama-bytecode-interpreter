@@ -87,14 +87,18 @@ int32_t vm_st_pop() {
     return *(vm.sp++);
 }
 
+void swap(int32_t *a, int32_t *b) {
+    int32_t temp = *a;
+    *a = *b;
+    *b = temp;
+}
+
 void vm_st_reverse(int elems_count) {
-#define SWAP(a, b) do { typeof(a) temp = a; a = b; b = temp; } while (0)
     int32_t *st = vm.sp;
     int32_t *first_arg = st + elems_count - 1;
     while (st < first_arg) {
-        SWAP(*(st++), *(first_arg--));
+        swap(st++, first_arg--);
     }
-#undef SWAP
 }
 
 void fill(int n, int32_t value) {
@@ -308,7 +312,7 @@ void eval() {
                     void *x = (void *) vm_st_pop();
                     vm_st_push((int32_t) Bsta(val, index, x));
                 } else {
-                    vm_st_push((int32_t) Bsta(val, index, NULL));
+                    vm_st_push((int32_t) Bsta(val, index, 0));
                 }
                 break;
             }
@@ -355,6 +359,7 @@ void eval() {
                 int n_locals = READ_INT;
 
                 vm_st_push((int32_t) vm.fp);
+                vm.fp = vm.sp;
                 fill(n_locals, BOX(0));
                 break;
             }
@@ -363,6 +368,7 @@ void eval() {
                 int n_locals = READ_INT;
 
                 vm_st_push((int32_t) vm.fp);
+                vm.fp = vm.sp;
                 fill(n_locals, BOX(0));
                 break;
             }
@@ -425,7 +431,7 @@ void eval() {
                 break;
             }
             case I_DUP: {
-                vm_st_push(peek(0));
+                fill(2, vm_st_pop());
                 break;
             }
             case I_TAG: {
@@ -444,6 +450,7 @@ void eval() {
                 int32_t arr_len = READ_INT;
                 int32_t arr = (int32_t) Barray_patt((int32_t *) vm_st_pop(), BOX(arr_len));
                 vm_st_push(arr);
+                break;
             }
             case I_FAIL: {
                 int32_t a = READ_INT;
@@ -457,6 +464,7 @@ void eval() {
             }
             case I_RET: {
                 failure("RET: undefined behaviour");
+                break;
             }
             default: {
                 failure("ERROR: invalid opcode %d-%d\n", first_bits, second_bits);

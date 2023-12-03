@@ -8,6 +8,7 @@
 typedef struct {
     char *ip;
     int *sp;
+    int **s_top;
     int *fp;
     ByteFile *bf;
 } VM;
@@ -24,7 +25,7 @@ void vm_st_reverse(int elems_count);
 
 void fill(int n, int32_t value);
 
-void init_interpreter();
+void init_interpreter(ByteFile *bf, int32_t **stack_top, int32_t **stack_bottom);
 
 void free_interpreter();
 
