@@ -12,7 +12,10 @@ To build the interpreter, follow these steps:
 
 ## Running Tests
 
-To run tests, execute the bash script `run_tests.sh`. This script runs regression tests to ensure the correct functioning of the interpreter.
+To run regression tests, execute the bash script `run_tests.sh`. This script runs regression tests to ensure the correct functioning of the interpreter.
+
+To run performance tests, execute the bash script `performance_test.sh`. This script runs performance test to compare implemented interpreter performance with the existing one.
+
 
 ## Usage
 
@@ -23,7 +26,6 @@ After successful compilation, the bytecode interpreter can be used to execute by
 ```bash
 ./build/lama-interpreter <bytecode_file>
 ```
-
 Replace <bytecode_file> with the name of the bytecode file you want to interpret.
 
 ## License
