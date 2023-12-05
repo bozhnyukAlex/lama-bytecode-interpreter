@@ -15,16 +15,6 @@ typedef struct {
 
 extern VM vm;
 
-void vm_st_push(int32_t value);
-
-int32_t vm_st_pop();
-
-void vm_st_drop(int n);
-
-void vm_st_reverse(int elems_count);
-
-void fill(int n, int32_t value);
-
 void init_interpreter(ByteFile *bf, int32_t **stack_top, int32_t **stack_bottom);
 
 void free_interpreter();
