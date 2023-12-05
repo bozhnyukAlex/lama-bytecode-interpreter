@@ -38,9 +38,15 @@ typedef struct {
     char buffer[0];
 } ByteFile;
 
+typedef enum {
+    I_BINOP = 0, // binary operator
+    I_LD = 2, // load a variable to the stack
+    I_LDA = 3, // load a variable address to the stack
+    I_ST = 4, // store a value into a variable
+    I_PATT = 6, // checks various patterns
+} OpCodeComplex;
 
 typedef enum {
-    I_BINOP, // binary operator
     I_CONST = 0x10, // put a constant on the stack
     I_STRING = 0x11, // put a string on the stack
     I_SEXP = 0x12, // create an S-expression
@@ -53,9 +59,6 @@ typedef enum {
     I_DUP = 0x19, // duplicates the top element
     I_SWAP = 0x1a, // swaps two top elements
     I_ELEM = 0x1b, // takes an element of array/string/sexp
-    I_LD, // load a variable to the stack
-    I_LDA, // load a variable address to the stack
-    I_ST, // store a value into a variable
     I_CJMP_Z = 0x50, // conditional jump
     I_CJMP_NZ = 0x51, // conditional jump
     I_BEGIN = 0x52, // begins procedure definition (with no closure)
@@ -72,7 +75,6 @@ typedef enum {
     I_CALL_LENGTH = 0x72,
     I_CALL_STRING = 0x73,
     I_CALL_ARRAY = 0x74,
-    I_PATT, // checks various patterns
 } OpCode;
 
 typedef enum {

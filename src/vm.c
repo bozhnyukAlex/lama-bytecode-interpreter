@@ -210,26 +210,26 @@ void eval() {
             return;
         }
 
-        if (first_bits == 0) { // BINOP
+        if (first_bits == I_BINOP) { // BINOP
             eval_bin_op(instruction);
             continue;
         }
 
-        if (first_bits == 2) { // LD
+        if (first_bits == I_LD) { // LD
             int index = READ_INT;
             int32_t val = *get_by_location(second_bits, index);
             VM_ST_PUSH(val);
             continue;
         }
 
-        if (first_bits == 3) { // LDA
+        if (first_bits == I_LDA) { // LDA
             int index = READ_INT;
             int32_t val = (int32_t) get_by_location(second_bits, index);
             VM_ST_PUSH(val);
             continue;
         }
 
-        if (first_bits == 4) { // ST
+        if (first_bits == I_ST) { // ST
             int32_t index = READ_INT;
             int32_t val = VM_ST_POP;
             *get_by_location(second_bits, index) = val;
@@ -237,7 +237,7 @@ void eval() {
             continue;
         }
 
-        if (first_bits == 6) {
+        if (first_bits == I_PATT) {
             int32_t *element = (int32_t *) VM_ST_POP;
             int32_t res = -1;
             switch (second_bits) {
