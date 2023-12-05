@@ -1447,7 +1447,7 @@ extern void* LgetEnv (char *var) {
   void *s;
   
   if (e == NULL)
-    return BOX(0);
+    return (void *) BOX(0);
 
   __pre_gc ();
 
@@ -1579,9 +1579,9 @@ extern void* Lfexists (char *fname) {
 
   f = fopen (fname, "r");
   
-  if (f) return BOX(1);
+  if (f) return (void *) BOX(1);
 
-  return BOX(0);
+  return (void *) BOX(0);
 }
 
 extern void* Lfst (void *v) {
@@ -1606,7 +1606,10 @@ extern int Lread () {
 
   printf ("> "); 
   fflush (stdout);
-  scanf  ("%d", &result);
+  int r = scanf  ("%d", &result);
+  if (r != 1) {
+      failure("Lread: scanf error");
+  }
 
   return BOX(result);
 }
