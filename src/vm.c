@@ -76,6 +76,9 @@ void free_interpreter() {
 }
 
 void vm_st_push(int32_t value) {
+    if (*vm.s_top == vm.sp - MAX_STACK_SIZE) {
+        failure("Stack overflow");
+    }
     *(--vm.sp) = value;
 }
 
@@ -83,8 +86,16 @@ void vm_st_drop(int n) {
     vm.sp += n;
 }
 
-int32_t vm_st_pop() {
+int32_t vm_st_pop_unchecked() {
     return *(vm.sp++);
+}
+
+
+int32_t vm_st_pop() {
+    if (vm.sp >= vm.fp) {
+        failure("Stack check error during pop");
+    }
+    return vm_st_pop_unchecked();
 }
 
 void swap(int32_t *a, int32_t *b) {
@@ -418,7 +429,7 @@ void eval() {
             case I_END: {
                 int32_t ret_val = vm_st_pop();
                 vm.sp = vm.fp;
-                vm.fp = (int32_t *) vm_st_pop();
+                vm.fp = (int32_t *) vm_st_pop_unchecked();
                 int32_t n_args = vm_st_pop();
                 char *ret_addr = (char *) vm_st_pop();
                 vm_st_drop(n_args);
