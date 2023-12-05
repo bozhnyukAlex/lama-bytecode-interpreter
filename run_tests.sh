@@ -40,6 +40,7 @@ for test_dir in "${test_dirs[@]}"; do
                 echo "Ok"
             fi
         fi
+        rm "$binary_file"
     done
 done
 
