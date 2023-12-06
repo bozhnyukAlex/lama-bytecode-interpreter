@@ -111,7 +111,7 @@ void fill(int n, int32_t value) {
     }
 }
 
-void jump_shift(int32_t new_ip) {
+void jump_offset(int32_t new_ip) {
     vm.ip = vm.bf->code_ptr + new_ip;
 }
 
@@ -317,14 +317,14 @@ void eval() {
                 break;
             }
             case I_JMP: {
-                jump_shift(READ_INT);
+                jump_offset(READ_INT);
                 break;
             }
             case I_CJMP_Z: {
                 int32_t shift = READ_INT;
                 int32_t cmp_val = UNBOX(vm_st_pop());
                 if (cmp_val == 0) {
-                    jump_shift(shift);
+                    jump_offset(shift);
                 }
                 break;
             }
@@ -332,7 +332,7 @@ void eval() {
                 int32_t shift = READ_INT;
                 int32_t cmp_val = UNBOX(vm_st_pop());
                 if (cmp_val != 0) {
-                    jump_shift(shift);
+                    jump_offset(shift);
                 }
                 break;
             }
@@ -378,7 +378,7 @@ void eval() {
                 vm_st_reverse(n_args);
                 vm_st_push((int32_t) vm.ip);
                 vm_st_push(n_args);
-                jump_shift(call_shift);
+                jump_offset(call_shift);
                 break;
             }
             case I_CALLC: {
