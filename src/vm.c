@@ -11,7 +11,7 @@ extern int32_t *__gc_stack_top, *__gc_stack_bottom;
 void *__start_custom_data;
 void *__stop_custom_data;
 
-extern void __init(void);
+extern void __gc_init(void);
 
 ByteFile *read_file(char *fname) {
     FILE *f = fopen(fname, "rb");
@@ -54,16 +54,9 @@ char *get_string_from_table(ByteFile *f, int pos) {
 
 const int MAX_STACK_SIZE = 1024 * 1024;
 
-void init_interpreter(ByteFile *bf, int32_t **stack_top, int32_t **stack_bottom) {
-    *stack_top = malloc(MAX_STACK_SIZE * sizeof(int32_t)) + MAX_STACK_SIZE;
-    if (*stack_top == NULL) {
-        failure("Init: malloc failure");
-    }
-    *stack_bottom = *stack_top;
-    vm.s_top = stack_top;
-    vm.fp = *stack_bottom;
+void init_interpreter(ByteFile *bf) {
+    vm.fp = vm.sp;
     vm.bf = bf;
-    vm.sp = *stack_bottom;
 
     vm_st_push(0);
     vm_st_push(0);
@@ -76,7 +69,7 @@ void free_interpreter() {
 }
 
 void vm_st_push(int32_t value) {
-    if (*vm.s_top == vm.sp - MAX_STACK_SIZE) {
+    if (vm.s_top == vm.sp - MAX_STACK_SIZE) {
         failure("Stack overflow");
     }
     *(--vm.sp) = value;
@@ -484,9 +477,18 @@ void eval() {
 
 
 int main(int argc, char *argv[]) {
-    __init();
     ByteFile *f = read_file(argv[1]);
-    init_interpreter(f, &__gc_stack_top, &__gc_stack_bottom);
+
+    vm.s_top = malloc(MAX_STACK_SIZE * sizeof(int32_t)) + MAX_STACK_SIZE;
+    if (vm.s_top == NULL) {
+        failure("Error: failed to initialize stack");
+    }
+    vm.sp = vm.s_top;
+    __gc_stack_bottom = vm.sp;
+    __gc_stack_top = vm.s_top;
+    __gc_init();
+
+    init_interpreter(f);
     eval();
     return 0;
 }
