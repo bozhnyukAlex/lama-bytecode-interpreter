@@ -52,39 +52,7 @@ char *get_string_from_table(ByteFile *f, int pos) {
     return f->string_ptr + pos;
 }
 
-void swap(int32_t *a, int32_t *b) {
-    int32_t temp = *a;
-    *a = *b;
-    *b = temp;
-}
-
 const int MAX_STACK_SIZE = 1024 * 1024;
-
-#define VM_ST_POP_UNCHECKED (*(vm.sp++))
-#define VM_ST_POP ({ if (vm.sp >= vm.fp) { failure("Stack check error during pop\n"); }; VM_ST_POP_UNCHECKED;  })
-#define VM_ST_PUSH(value) ({ if (*vm.s_top == vm.sp - MAX_STACK_SIZE) { failure("Stack overflow\n"); }; *(--vm.sp) = value; })
-#define VM_ST_REVERSE(elems_count) do {\
-    int32_t *st = vm.sp;\
-    int32_t *first_arg = st + elems_count - 1;\
-    while (st < first_arg) {\
-        swap(st++, first_arg--);\
-    }\
-} while(0)
-
-#define VM_ST_FILL(n, value) do {\
-    for (int i = 0; i < n; i++) {\
-        VM_ST_PUSH(value);\
-    }\
-} while(0)
-
-#define VM_ST_DROP_UNCHECKED(n) (vm.sp += n)
-
-#define VM_ST_DROP(n) do { \
-    VM_ST_DROP_UNCHECKED(n); \
-    if (vm.sp > vm.fp) { \
-        failure("Stack check error during drop"); \
-    } \
-} while(0)
 
 void init_interpreter(ByteFile *bf, int32_t **stack_top, int32_t **stack_bottom) {
     *stack_top = malloc(MAX_STACK_SIZE * sizeof(int32_t)) + MAX_STACK_SIZE;
@@ -97,16 +65,60 @@ void init_interpreter(ByteFile *bf, int32_t **stack_top, int32_t **stack_bottom)
     vm.bf = bf;
     vm.sp = *stack_bottom;
 
-    VM_ST_PUSH(0);
-    VM_ST_PUSH(0);
-    VM_ST_PUSH(2);
+    vm_st_push(0);
+    vm_st_push(0);
+    vm_st_push(2);
 }
+
 
 void free_interpreter() {
     free(vm.s_top - MAX_STACK_SIZE);
 }
 
-void jump_offset(int32_t new_ip) {
+void vm_st_push(int32_t value) {
+    if (*vm.s_top == vm.sp - MAX_STACK_SIZE) {
+        failure("Stack overflow");
+    }
+    *(--vm.sp) = value;
+}
+
+void vm_st_drop(int n) {
+    vm.sp += n;
+}
+
+int32_t vm_st_pop_unchecked() {
+    return *(vm.sp++);
+}
+
+
+int32_t vm_st_pop() {
+    if (vm.sp >= vm.fp) {
+        failure("Stack check error during pop");
+    }
+    return vm_st_pop_unchecked();
+}
+
+void swap(int32_t *a, int32_t *b) {
+    int32_t temp = *a;
+    *a = *b;
+    *b = temp;
+}
+
+void vm_st_reverse(int elems_count) {
+    int32_t *st = vm.sp;
+    int32_t *first_arg = st + elems_count - 1;
+    while (st < first_arg) {
+        swap(st++, first_arg--);
+    }
+}
+
+void fill(int n, int32_t value) {
+    for (int i = 0; i < n; i++) {
+        vm_st_push(value);
+    }
+}
+
+void jump_shift(int32_t new_ip) {
     vm.ip = vm.bf->code_ptr + new_ip;
 }
 
@@ -141,9 +153,9 @@ int32_t *get_by_location(char sb, int32_t value) {
 
 #define BINARY_OP(op) \
     do { \
-        int b = UNBOX(VM_ST_POP); \
-        int a = UNBOX(VM_ST_POP); \
-        VM_ST_PUSH(BOX(a op b)); \
+        int b = UNBOX(vm_st_pop()); \
+        int a = UNBOX(vm_st_pop()); \
+        vm_st_push(BOX(a op b)); \
     } while (0)
 
 
@@ -218,31 +230,31 @@ void eval() {
         if (first_bits == I_LD) { // LD
             int index = READ_INT;
             int32_t val = *get_by_location(second_bits, index);
-            VM_ST_PUSH(val);
+            vm_st_push(val);
             continue;
         }
 
         if (first_bits == I_LDA) { // LDA
             int index = READ_INT;
             int32_t val = (int32_t) get_by_location(second_bits, index);
-            VM_ST_PUSH(val);
+            vm_st_push(val);
             continue;
         }
 
         if (first_bits == I_ST) { // ST
             int32_t index = READ_INT;
-            int32_t val = VM_ST_POP;
+            int32_t val = vm_st_pop();
             *get_by_location(second_bits, index) = val;
-            VM_ST_PUSH(val);
+            vm_st_push(val);
             continue;
         }
 
         if (first_bits == I_PATT) {
-            int32_t *element = (int32_t *) VM_ST_POP;
+            int32_t *element = (int32_t *) vm_st_pop();
             int32_t res = -1;
             switch (second_bits) {
                 case PATT_STR: {
-                    res = Bstring_patt(element, (int32_t *) VM_ST_POP);
+                    res = Bstring_patt(element, (int32_t *) vm_st_pop());
                     break;
                 }
                 case PATT_TAG_STR: {
@@ -273,27 +285,27 @@ void eval() {
                     failure("Unexpected pattern type");
                 }
             }
-            VM_ST_PUSH(res);
+            vm_st_push(res);
             continue;
         }
 
         switch (instruction) {
             case I_CONST: {
-                VM_ST_PUSH(BOX(READ_INT));
+                vm_st_push(BOX(READ_INT));
                 break;
             }
             case I_STRING: {
-                VM_ST_PUSH((int32_t) Bstring(READ_STRING));
+                vm_st_push((int32_t) Bstring(READ_STRING));
                 break;
             }
             case I_SEXP: {
                 char *s_exp_name = READ_STRING;
                 int32_t s_exp_arity = READ_INT;
                 int32_t s_exp_tag = LtagHash(s_exp_name);
-                VM_ST_REVERSE(s_exp_arity);
+                vm_st_reverse(s_exp_arity);
                 int32_t bs_exp = (int32_t) Bsexp_data(BOX(s_exp_arity + 1), s_exp_tag, vm.sp);
-                VM_ST_DROP(s_exp_arity);
-                VM_ST_PUSH(bs_exp);
+                vm_st_drop(s_exp_arity);
+                vm_st_push(bs_exp);
                 break;
             }
             case I_STI: {
@@ -301,33 +313,33 @@ void eval() {
                 break;
             }
             case I_STA: {
-                void *val = (void *) VM_ST_POP;
-                int32_t index = VM_ST_POP;
+                void *val = (void *) vm_st_pop();
+                int32_t index = vm_st_pop();
                 if (IS_BOXED(index)) {
-                    void *x = (void *) VM_ST_POP;
-                    VM_ST_PUSH((int32_t) Bsta(val, index, x));
+                    void *x = (void *) vm_st_pop();
+                    vm_st_push((int32_t) Bsta(val, index, x));
                 } else {
-                    VM_ST_PUSH((int32_t) Bsta(val, index, 0));
+                    vm_st_push((int32_t) Bsta(val, index, 0));
                 }
                 break;
             }
             case I_JMP: {
-                jump_offset(READ_INT);
+                jump_shift(READ_INT);
                 break;
             }
             case I_CJMP_Z: {
                 int32_t shift = READ_INT;
-                int32_t cmp_val = UNBOX(VM_ST_POP);
+                int32_t cmp_val = UNBOX(vm_st_pop());
                 if (cmp_val == 0) {
-                    jump_offset(shift);
+                    jump_shift(shift);
                 }
                 break;
             }
             case I_CJMP_NZ: {
                 int32_t shift = READ_INT;
-                int32_t cmp_val = UNBOX(VM_ST_POP);
+                int32_t cmp_val = UNBOX(vm_st_pop());
                 if (cmp_val != 0) {
-                    jump_offset(shift);
+                    jump_shift(shift);
                 }
                 break;
             }
@@ -340,112 +352,111 @@ void eval() {
                     int val = READ_INT;
                     binds[i] = *get_by_location(b, val);
                 }
-                VM_ST_PUSH((int32_t) Bclosure_values(BOX(bn), vm.bf->code_ptr + ip_shift, binds));
+                vm_st_push((int32_t) Bclosure_values(BOX(bn), vm.bf->code_ptr + ip_shift, binds));
                 break;
             }
             case I_ELEM: {
-                int32_t index = VM_ST_POP;
-                void *ptr = (void *) VM_ST_POP;
-                VM_ST_PUSH((int32_t) Belem(ptr, index));
+                int32_t index = vm_st_pop();
+                void *ptr = (void *) vm_st_pop();
+                vm_st_push((int32_t) Belem(ptr, index));
                 break;
             }
             case I_BEGIN: {
                 int n_args = READ_INT;
                 int n_locals = READ_INT;
 
-                VM_ST_PUSH((int32_t) vm.fp);
+                vm_st_push((int32_t) vm.fp);
                 vm.fp = vm.sp;
-                VM_ST_FILL(n_locals, BOX(0));
+                fill(n_locals, BOX(0));
                 break;
             }
             case I_CBEGIN: {
                 int n_args = READ_INT;
                 int n_locals = READ_INT;
 
-                VM_ST_PUSH((int32_t) vm.fp);
+                vm_st_push((int32_t) vm.fp);
                 vm.fp = vm.sp;
-                VM_ST_FILL(n_locals, BOX(0));
+                fill(n_locals, BOX(0));
                 break;
             }
             case I_CALL: {
                 int32_t call_shift = READ_INT;
                 int32_t n_args = READ_INT;
-                VM_ST_REVERSE(n_args);
-                VM_ST_PUSH((int32_t) vm.ip);
-                VM_ST_PUSH(n_args);
-                jump_offset(call_shift);
+                vm_st_reverse(n_args);
+                vm_st_push((int32_t) vm.ip);
+                vm_st_push(n_args);
+                jump_shift(call_shift);
                 break;
             }
             case I_CALLC: {
                 int32_t n_args = READ_INT;
                 char *callee = (char *) Belem((int32_t *) vm.sp[n_args], BOX(0));
-                VM_ST_REVERSE(n_args);
-                VM_ST_PUSH((int32_t) vm.ip);
-                VM_ST_PUSH(n_args + 1);
+                vm_st_reverse(n_args);
+                vm_st_push((int32_t) vm.ip);
+                vm_st_push(n_args + 1);
                 vm.ip = callee;
                 break;
             }
             case I_CALL_READ: {
                 int r = Lread();
-                VM_ST_PUSH(r);
+                vm_st_push(r);
                 break;
             }
             case I_CALL_WRITE: {
-                VM_ST_PUSH(Lwrite(VM_ST_POP));
+                vm_st_push(Lwrite(vm_st_pop()));
                 break;
             };
             case I_CALL_STRING: {
-                VM_ST_PUSH((int32_t) Lstring((void *) VM_ST_POP));
+                vm_st_push((int32_t) Lstring((void *) vm_st_pop()));
                 break;
             }
             case I_CALL_LENGTH: {
-                VM_ST_PUSH(Llength((void *) VM_ST_POP));
+                vm_st_push(Llength((void *) vm_st_pop()));
                 break;
             }
             case I_CALL_ARRAY: {
                 int32_t arr_len = READ_INT;
-                VM_ST_REVERSE(arr_len);
+                vm_st_reverse(arr_len);
                 int32_t res = (int32_t) Barray_data(BOX(arr_len), vm.sp);
-                VM_ST_DROP(arr_len);
-                VM_ST_PUSH(res);
+                vm_st_drop(arr_len);
+                vm_st_push(res);
                 break;
             }
             case I_END: {
-                int32_t ret_val = VM_ST_POP;
+                int32_t ret_val = vm_st_pop();
                 vm.sp = vm.fp;
-                vm.fp = (int32_t *) VM_ST_POP_UNCHECKED;
-                int32_t n_args = VM_ST_POP;
-                char *ret_addr = (char *) VM_ST_POP;
-                VM_ST_DROP_UNCHECKED(n_args);
-                VM_ST_PUSH(ret_val);
+                vm.fp = (int32_t *) vm_st_pop_unchecked();
+                int32_t n_args = vm_st_pop();
+                char *ret_addr = (char *) vm_st_pop();
+                vm_st_drop(n_args);
+                vm_st_push(ret_val);
                 vm.ip = ret_addr;
                 break;
             }
             case I_DROP: {
-                VM_ST_POP;
+                vm_st_pop();
                 break;
             }
             case I_DUP: {
-                int32_t value = VM_ST_POP;
-                VM_ST_FILL(2, value);
+                fill(2, vm_st_pop());
                 break;
             }
             case I_TAG: {
                 char *t_name = READ_STRING;
                 int32_t n = READ_INT;
                 int32_t t = LtagHash(t_name);
-                void *d = (void *) VM_ST_POP;
-                VM_ST_PUSH(Btag(d, t, BOX(n)));
+                void *d = (void *) vm_st_pop();
+                vm_st_push(Btag(d, t, BOX(n)));
                 break;
             }
             case I_SWAP: {
-                VM_ST_REVERSE(2);
+                vm_st_reverse(2);
                 break;
             }
             case I_ARRAY: {
                 int32_t arr_len = READ_INT;
-                int32_t arr = (int32_t) Barray_patt((int32_t *) VM_ST_POP, BOX(arr_len));
-                VM_ST_PUSH(arr);
+                int32_t arr = (int32_t) Barray_patt((int32_t *) vm_st_pop(), BOX(arr_len));
+                vm_st_push(arr);
                 break;
             }
             case I_FAIL: {
