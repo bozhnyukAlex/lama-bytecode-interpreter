@@ -1,5 +1,5 @@
 Running the performance test Sort.lama in ../performance/
 Performance test using interpreter: OK
-Execution time using interpreter: 584.000 milliseconds
+Execution time using interpreter: 572.000 milliseconds
 Performance test using lamac with -i flag: OK
-Execution time using lamac with -i flag: 5860.000 milliseconds
+Execution time using lamac with -i flag: 5328.000 milliseconds
