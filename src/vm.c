@@ -11,6 +11,8 @@ extern int32_t *__gc_stack_top, *__gc_stack_bottom;
 void *__start_custom_data;
 void *__stop_custom_data;
 
+int32_t *stack_start;
+
 extern void __gc_init(void);
 
 ByteFile *read_file(char *fname) {
@@ -54,9 +56,11 @@ char *get_string_from_table(ByteFile *f, int pos) {
 
 const int MAX_STACK_SIZE = 1024 * 1024;
 
+static int32_t *vm_fp;
+
 void init_interpreter(ByteFile *bf) {
-    vm.fp = vm.sp;
     vm.bf = bf;
+    vm_fp = __gc_stack_top;
 
     vm_st_push(0);
     vm_st_push(0);
@@ -65,27 +69,30 @@ void init_interpreter(ByteFile *bf) {
 
 
 void free_interpreter() {
-    free(vm.s_top - MAX_STACK_SIZE);
+    free(stack_start);
 }
 
 void vm_st_push(int32_t value) {
-    if (vm.s_top == vm.sp - MAX_STACK_SIZE) {
-        failure("Stack overflow");
+    if (stack_start == __gc_stack_top) {
+        failure("Error: stack overflow");
     }
-    *(--vm.sp) = value;
+    *(--__gc_stack_top) = value;
 }
 
 void vm_st_drop(int n) {
-    vm.sp += n;
+    __gc_stack_top += n;
+    if (__gc_stack_top > __gc_stack_bottom) {
+        failure("Error: cannot perform drop, stack is exhausted");
+    }
 }
 
 int32_t vm_st_pop_unchecked() {
-    return *(vm.sp++);
+    return *(__gc_stack_top++);
 }
 
 
 int32_t vm_st_pop() {
-    if (vm.sp >= vm.fp) {
+    if (__gc_stack_top >= vm_fp) {
         failure("Stack check error during pop");
     }
     return vm_st_pop_unchecked();
@@ -98,10 +105,10 @@ void swap(int32_t *a, int32_t *b) {
 }
 
 void vm_st_reverse(int elems_count) {
-    int32_t *st = vm.sp;
-    int32_t *first_arg = st + elems_count - 1;
-    while (st < first_arg) {
-        swap(st++, first_arg--);
+    int32_t *st = __gc_stack_top;
+    int32_t *first_arg = st - elems_count + 1;
+    while (first_arg < st) {
+        swap(first_arg++, st--);
     }
 }
 
@@ -116,15 +123,15 @@ void jump_offset(int32_t new_ip) {
 }
 
 int32_t *argument(int pos) {
-    return vm.fp + pos + 3;
+    return vm_fp + pos + 3;
 }
 
 int32_t *local(int pos) {
-    return vm.fp - pos - 1;
+    return vm_fp - pos - 1;
 }
 
 int32_t *from_closure(int pos) {
-    int32_t n_args = *(vm.fp + 1);
+    int32_t n_args = *(vm_fp + 1);
     int32_t *current_closure = (int32_t *) *argument(n_args - 1);
     return (int32_t *) Belem_l(current_closure, BOX(pos + 1));
 }
@@ -296,7 +303,7 @@ void eval() {
                 int32_t s_exp_arity = READ_INT;
                 int32_t s_exp_tag = LtagHash(s_exp_name);
                 vm_st_reverse(s_exp_arity);
-                int32_t bs_exp = (int32_t) Bsexp_data(BOX(s_exp_arity + 1), s_exp_tag, vm.sp);
+                int32_t bs_exp = (int32_t) Bsexp_data(BOX(s_exp_arity + 1), s_exp_tag, __gc_stack_top);
                 vm_st_drop(s_exp_arity);
                 vm_st_push(bs_exp);
                 break;
@@ -358,8 +365,8 @@ void eval() {
                 int n_args = READ_INT;
                 int n_locals = READ_INT;
 
-                vm_st_push((int32_t) vm.fp);
-                vm.fp = vm.sp;
+                vm_st_push((int32_t) vm_fp);
+                vm_fp = __gc_stack_top;
                 fill(n_locals, BOX(0));
                 break;
             }
@@ -367,8 +374,8 @@ void eval() {
                 int n_args = READ_INT;
                 int n_locals = READ_INT;
 
-                vm_st_push((int32_t) vm.fp);
-                vm.fp = vm.sp;
+                vm_st_push((int32_t) vm_fp);
+                vm_fp = __gc_stack_top;
                 fill(n_locals, BOX(0));
                 break;
             }
@@ -383,7 +390,7 @@ void eval() {
             }
             case I_CALLC: {
                 int32_t n_args = READ_INT;
-                char *callee = (char *) Belem((int32_t *) vm.sp[n_args], BOX(0));
+                char *callee = (char *) Belem((int32_t *) __gc_stack_top[n_args], BOX(0));
                 vm_st_reverse(n_args);
                 vm_st_push((int32_t) vm.ip);
                 vm_st_push(n_args + 1);
@@ -410,15 +417,15 @@ void eval() {
             case I_CALL_ARRAY: {
                 int32_t arr_len = READ_INT;
                 vm_st_reverse(arr_len);
-                int32_t res = (int32_t) Barray_data(BOX(arr_len), vm.sp);
+                int32_t res = (int32_t) Barray_data(BOX(arr_len), __gc_stack_top);
                 vm_st_drop(arr_len);
                 vm_st_push(res);
                 break;
             }
             case I_END: {
                 int32_t ret_val = vm_st_pop();
-                vm.sp = vm.fp;
-                vm.fp = (int32_t *) vm_st_pop_unchecked();
+                __gc_stack_top = vm_fp;
+                vm_fp = (int32_t *) vm_st_pop_unchecked();
                 int32_t n_args = vm_st_pop();
                 char *ret_addr = (char *) vm_st_pop();
                 vm_st_drop(n_args);
@@ -479,13 +486,11 @@ void eval() {
 int main(int argc, char *argv[]) {
     ByteFile *f = read_file(argv[1]);
 
-    vm.s_top = malloc(MAX_STACK_SIZE * sizeof(int32_t)) + MAX_STACK_SIZE;
-    if (vm.s_top == NULL) {
+    stack_start = malloc(MAX_STACK_SIZE * sizeof(int32_t));
+    if (stack_start == NULL) {
         failure("Error: failed to initialize stack");
     }
-    vm.sp = vm.s_top;
-    __gc_stack_bottom = vm.sp;
-    __gc_stack_top = vm.s_top;
+    __gc_stack_bottom = __gc_stack_top = stack_start + MAX_STACK_SIZE;
     __gc_init();
 
     init_interpreter(f);

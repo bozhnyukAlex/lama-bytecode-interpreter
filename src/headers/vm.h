@@ -7,9 +7,6 @@
 
 typedef struct {
     char *ip;
-    int *sp;
-    int *s_top;
-    int *fp;
     ByteFile *bf;
 } VM;
 
