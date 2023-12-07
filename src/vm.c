@@ -106,9 +106,9 @@ void swap(int32_t *a, int32_t *b) {
 
 void vm_st_reverse(int elems_count) {
     int32_t *st = __gc_stack_top;
-    int32_t *first_arg = st - elems_count + 1;
-    while (first_arg < st) {
-        swap(first_arg++, st--);
+    int32_t *first_arg = st + elems_count - 1;
+    while (st < first_arg) {
+        swap(st++, first_arg--);
     }
 }
 

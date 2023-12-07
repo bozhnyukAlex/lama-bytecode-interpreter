@@ -1226,8 +1226,6 @@ extern void* Bsexp_data (int bn, int tag, int *data_) {
   data   *d;  
   int n = UNBOX(bn); 
 
-  __pre_gc () ;
-  
 #ifdef DEBUG_PRINT
   indent++; print_indent ();
   printf("Bsexp: allocate %zu!\n",sizeof(int) * (n+1)); fflush (stdout);
@@ -1253,8 +1251,6 @@ extern void* Bsexp_data (int bn, int tag, int *data_) {
   printf("Bsexp: ends\n"); fflush (stdout);
   indent--;
 #endif
-
-  __post_gc();
 
   return d->contents;
 }
